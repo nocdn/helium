@@ -6,20 +6,22 @@
  // the tab.
 -constexpr int kSeparatorThickness = 2;
 -constexpr int kSeparatorHorizontalMargin = 2;
-+constexpr int kSeparatorThickness = 1;
-+constexpr int kSeparatorHorizontalMargin = 5;
++// Top-pill-tabs (screenshot): no dividers, 6px pill gaps for detached look.
++constexpr int kSeparatorThickness = 0;
++constexpr int kSeparatorHorizontalMargin = 6;
  constexpr int kSeparatorHeight = 16;
  
  
 -// The standard tab width is 232 DIP, excluding separators and overlap.
 -constexpr int kTabWidth = 232;
-+// The standard tab width is 190 DIP, excluding separators and overlap.
-+constexpr int kTabWidth = 190;
++// The standard tab width is 168 DIP, excluding separators and overlap.
++// (Top-pill-tabs: narrower to match screenshot active pill ~160-170px).
++constexpr int kTabWidth = 168;
 +
 +// Split tabs need more space to be readable.
 +constexpr int kSplitTabWidth = 250;
 +
-+constexpr int kTabHorizontalPadding = 2;
++constexpr int kTabHorizontalPadding = 6;
  
  // Used in glass frame in cases where we want the tab background colors to
  // have some transparency, to show the frame underneath.
@@ -46,12 +48,12 @@
  
  int TabStyle::GetTopCornerRadius() const {
 -  return 10;
-+  return 8;
++  return 10;
  }
- 
+
  int TabStyle::GetBottomCornerRadius() const {
 -  return 12;
-+  return 8;
++  return 10;
  }
  
  int TabStyle::GetTabOverlap() const {
@@ -97,7 +99,7 @@
    float content_corner_radius =
        GetTopCornerRadiusForWidth(delegate_->GetView()->width()) * scale;
 -  float extension_corner_radius = tab_style()->GetBottomCornerRadius() * scale;
-+  float extension_corner_radius = 4 * scale;
++  float extension_corner_radius = 10 * scale;
  
    const float separator_overlap = (tab_style()->GetSeparatorMargins().width() +
                                     tab_style()->GetSeparatorSize().width()) *
