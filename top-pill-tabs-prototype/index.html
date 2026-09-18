@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Helium — Top Pill Tabs Prototype</title>
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="desktop">
+    <div class="window" id="window">
+      <!-- Top tab bar — matches screenshot -->
+      <div class="tabbar" id="tabbar">
+        <div class="traffic">
+          <span class="dot red"></span>
+          <span class="dot yellow"></span>
+          <span class="dot green"></span>
+        </div>
+
+        <div class="tabs" id="tabs">
+          <!-- pinned favicons like screenshot: X D C G S -->
+          <button class="pin" data-tip="X">X</button>
+          <button class="pin" data-tip="Drive">D</button>
+          <button class="pin" data-tip="Calendar">C</button>
+          <button class="pin" data-tip="Gmail">G</button>
+          <button class="pin" data-tip="Slack">S</button>
+
+          <button class="group-pill" id="groupPill">Office Commun</button>
+
+          <div class="tab active" data-tab="norma">
+            <span class="tab-title">Norma — Block distra…</span>
+            <span class="tab-close" title="Close">×</span>
+          </div>
+
+          <button class="newtab" id="newTabBtn" title="New tab">+</button>
+        </div>
+
+        <div class="spacer"></div>
+      </div>
+
+      <!-- Mock page content (NORMA site from screenshot) -->
+      <div class="page">
+        <div class="nav">
+          <div class="logo">NORMA</div>
+          <div class="links"><span>How it works</span><span>FAQ</span><span>Mac</span><span>Journal</span></div>
+          <div class="cta"><span class="lang">🇺🇸 EN</span><button class="order">Order</button></div>
+        </div>
+        <div class="hero">
+          <div class="hero-left">
+            <h1>Your phone is engineered<br/>for engagement.</h1>
+            <div class="hero-btns">
+              <button class="primary">See your screen time ⌄</button>
+              <button class="secondary">Order →</button>
+            </div>
+          </div>
+          <div class="hero-right">
+            <div class="stat"><b>220</b><span>phone checks<br/><i>every day</i></span></div>
+            <div class="stat"><b>149</b><span>unlocks<br/><i>every day</i></span></div>
+            <div class="stat"><b>22</b><span>minutes<br/><i>to refocus after each one</i></span></div>
+            <div class="stat"><b>4h</b><span>of screen time<br/><i>on average, daily</i></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint">
+      Click tabs to switch • Hover for close • <b>+</b> adds tab • Drag tabs to reorder • Matches your screenshot layout
+    </div>
+  </div>
+<script src="app.js"></script>
+</body>
+</html>
