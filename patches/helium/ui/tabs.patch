@@ -6,7 +6,6 @@
  // the tab.
 -constexpr int kSeparatorThickness = 2;
 -constexpr int kSeparatorHorizontalMargin = 2;
-+// Top-pill-tabs (screenshot): no dividers, 6px pill gaps for detached look.
 +constexpr int kSeparatorThickness = 0;
 +constexpr int kSeparatorHorizontalMargin = 6;
  constexpr int kSeparatorHeight = 16;
@@ -15,7 +14,6 @@
 -// The standard tab width is 232 DIP, excluding separators and overlap.
 -constexpr int kTabWidth = 232;
 +// The standard tab width is 168 DIP, excluding separators and overlap.
-+// (Top-pill-tabs: narrower to match screenshot active pill ~160-170px).
 +constexpr int kTabWidth = 168;
 +
 +// Split tabs need more space to be readable.
