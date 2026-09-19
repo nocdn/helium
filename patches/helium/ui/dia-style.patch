@@ -245,7 +245,21 @@ Index: src/chrome/browser/ui/views/location_bar/location_bar_view.cc
  #include "chrome/browser/ui/color/chrome_color_id.h"
  #include "chrome/browser/ui/content_settings/content_setting_bubble_model.h"
  #include "chrome/browser/ui/layout_constants.h"
-@@ -874,7 +875,13 @@ void LocationBarView::Layout(PassKey) {
+@@ -244,6 +245,13 @@ LocationBarView::LocationBarView(Browser
+             return false;
+           }
+ 
++          // Dia-style: no focus halo in vertical layout.
++          if (auto* layout_controller =
++                  HeliumLayoutStateController::From(v->browser_.get());
++              layout_controller && layout_controller->IsVerticalLayout()) {
++            return false;
++          }
++
+           // Show focus ring when the Omnibox is visibly focused and the popup
+           // is closed.
+           return v->GetOmniboxController()->edit_model()->is_caret_visible() &&
+@@ -874,7 +882,13 @@ void LocationBarView::Layout(PassKey) {
      }
    }
  
@@ -260,7 +274,7 @@ Index: src/chrome/browser/ui/views/location_bar/location_bar_view.cc
      location_icon_view_->SetVisible(false);
      leading_decorations.AddDecoration(
          vertical_padding, location_height, false, kLeadingDecorationMaxFraction,
-@@ -1428,6 +1435,14 @@ void LocationBarView::RefreshBackground(
+@@ -1428,6 +1442,14 @@ void LocationBarView::RefreshBackground(
    if (is_popup_mode_) {
      SetBackground(views::CreateSolidBackground(background_color_));
    } else {
