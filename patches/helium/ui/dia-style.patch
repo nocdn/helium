@@ -83,7 +83,7 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
  #include "ui/views/view_utils.h"
  #include "chrome/browser/ui/views/frame/custom_corners_background.h"
  #include "chrome/browser/ui/views/frame/layout/browser_view_layout_delegate.h"
-@@ -1331,11 +1336,25 @@ BrowserViewTabbedLayoutImpl::CalculatePr
+@@ -1331,11 +1336,30 @@ BrowserViewTabbedLayoutImpl::CalculatePr
      content_right =
          std::min(content_right, browser_params.visual_client_area.right());
    }
@@ -96,11 +96,16 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
 +  int content_top = params.visual_client_area.y();
 +  int content_height = params.visual_client_area.height();
 +  if (dia_floating_contents) {
++    // No top gap: the page sits flush under the toolbar inside the card.
++    // Like the toolbar, the card starts after the sidebar.
 +    constexpr int kDiaContentMargin = 8;
-+    content_left += kDiaContentMargin;
-+    content_right -= kDiaContentMargin;
-+    content_top += kDiaContentMargin;
-+    content_height -= 2 * kDiaContentMargin;
++    const int strip_width =
++        layout_data_->horizontal_layout.vertical_tab_strip_width;
++    content_left +=
++        (vertical_right_aligned ? 0 : strip_width) + kDiaContentMargin;
++    content_right -=
++        (vertical_right_aligned ? strip_width : 0) + kDiaContentMargin;
++    content_height -= kDiaContentMargin;
 +  }
    auto& contents_layout =
        layout.AddChild(views().multi_contents_view,
@@ -112,19 +117,17 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
  
    // Maybe expand and clip the web contents to avoid issues during animation.
    if (features::UseSidePanelFlyoverAnimation()) {
-@@ -1399,6 +1418,35 @@ BrowserViewTabbedLayoutImpl::CalculatePr
+@@ -1399,6 +1423,31 @@ BrowserViewTabbedLayoutImpl::CalculatePr
      views().multi_contents_view->SetBackgroundRadii(content_corners);
    }
  
-+  // Dia-style: round all content corners and paint the window surround with a
-+  // neutral container color so the page reads as a floating card. Only in
-+  // vertical layout; other layouts keep the toolbar-colored background.
++  // Dia-style: the page is the bottom half of the floating card (toolbar is
++  // the top half), so only the bottom corners are rounded here. The gray
++  // surround comes from the toolbar-colored theme itself.
 +  if (dia_floating_contents) {
 +    constexpr SkScalar kDiaContentRadius = 10;
-+    views().multi_contents_view->SetBackgroundRadii(
-+        gfx::RoundedCornersF(kDiaContentRadius));
-+    views().browser_view->GetWidget()->SetBackgroundColor(
-+        ui::kColorSysSurface4);
++    views().multi_contents_view->SetBackgroundRadii(gfx::RoundedCornersF(
++        0, 0, kDiaContentRadius, kDiaContentRadius));
 +    // Re-hide the page icon and bookmark star on every pass: their owners
 +    // restore visibility on navigation and theme changes.
 +    if (auto* toolbar =
@@ -141,31 +144,68 @@ Index: src/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.
 +        }
 +      }
 +    }
-+  } else if (GetHeliumLayout() != HeliumLayoutType::kVertical) {
-+    views().browser_view->GetWidget()->SetBackgroundColor(kColorToolbar);
 +  }
 +
    // Make final visual adjustments required for child views to paint.
    if (layout_data_->tab_strip_type == TabStripType::kVertical) {
      const auto toolbar_bounds =
+@@ -1487,6 +1536,24 @@ gfx::Rect BrowserViewTabbedLayoutImpl::C
+                           views().toolbar->GetPreferredSize().height());
+       toolbar_bounds =
+           SlideBoundsFromTop(toolbar_bounds, zen.top_chrome_ratio);
++      // Dia-style: the toolbar lives inside the floating page card, which
++      // starts after the sidebar. Margins on all outer sides.
++      if (GetHeliumLayout() == HeliumLayoutType::kVertical &&
++          !is_fullscreen(layout_data_->window_state) && !zen.enabled) {
++        constexpr int kDiaContentMargin = 8;
++        const int strip_width =
++            layout_data_->horizontal_layout.vertical_tab_strip_width;
++        const bool strip_on_right =
++            delegate().IsVerticalTabStripRightAligned();
++        const int card_left = params.visual_client_area.x() +
++                              (strip_on_right ? 0 : strip_width);
++        const int card_right = params.visual_client_area.right() -
++                               (strip_on_right ? strip_width : 0);
++        toolbar_bounds.set_x(card_left + kDiaContentMargin);
++        toolbar_bounds.set_width(card_right - kDiaContentMargin -
++                                 toolbar_bounds.x());
++        toolbar_bounds.Inset(gfx::Insets::TLBR(kDiaContentMargin, 0, 0, 0));
++      }
+       params.SetTop(toolbar_bounds.bottom());
+       needs_exclusion = false;
+     }
+@@ -1575,6 +1642,12 @@ void BrowserViewTabbedLayoutImpl::Config
+   if (zen_hiding && frame_has_top_border) {
+     background->SetVisible(false);
+     background->SetCorners({});
++  } else if (GetHeliumLayout() == HeliumLayoutType::kVertical &&
++             !is_fullscreen(layout_data_->window_state) && !zen_mode) {
++    // Dia-style: the toolbar lives inside the floating page card, so the
++    // top container itself stays transparent and the window gray shows
++    // around the inset toolbar.
++    background->SetVisible(false);
+   } else {
+     background->SetVisible(true);
+   }
 Index: src/chrome/browser/ui/views/toolbar/toolbar_view.cc
 ===================================================================
 --- src.orig/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ src/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -2022,6 +2022,24 @@ void ToolbarView::UpdateToolbarLayout()
+@@ -2022,6 +2022,25 @@ void ToolbarView::UpdateToolbarLayout()
    UpdateVerticalTabsCollapseButton();
    UpdateDynamicNewTabButton();
  
-+  // Dia-style toolbar in vertical layout: a flat container-colored band that
-+  // melts into the window background (the omnibox pill itself is flattened
-+  // inside LocationBarView::RefreshBackground, and the page icon/star are
-+  // re-hidden from the browser layout on every pass). Restored on leaving.
++  // Dia-style toolbar in vertical layout: the top half of the floating
++  // page card, so white with rounded top corners (the omnibox pill itself
++  // is flattened inside LocationBarView::RefreshBackground, and the page
++  // icon/star are re-hidden from the browser layout on every pass).
++  // Restored on leaving vertical layout.
 +  const bool dia_minimal_chrome = IsVerticalLayout();
 +  if (dia_minimal_chrome != dia_chrome_applied_) {
 +    dia_chrome_applied_ = dia_minimal_chrome;
 +    if (dia_minimal_chrome) {
-+      SetBackground(
-+          views::CreateSolidBackground(ui::kColorSysSurface4));
++      SetBackground(views::CreateRoundedRectBackground(
++          ui::kColorSysBase, gfx::RoundedCornersF(10, 10, 0, 0)));
 +    } else {
 +      SetBackground(std::make_unique<CustomCornersBackground>(
 +          *this, *browser_view_,
@@ -235,20 +275,141 @@ Index: src/chrome/browser/ui/views/location_bar/location_bar_view.cc
      SetBackground(CreateRoundRectBackground(
          background_color_, border_color, size(),
          /*blend_mode=*/SkBlendMode::kSrcOver,
+Index: src/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+===================================================================
+--- src.orig/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
++++ src/chrome/browser/ui/views/frame/browser_frame_view_mac.mm
+@@ -22,6 +22,7 @@
+ #include "chrome/browser/themes/theme_service.h"
+ #include "chrome/browser/themes/theme_service_factory.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/helium/helium_layout_state_controller.h"
+ #include "chrome/browser/ui/cocoa/fullscreen/fullscreen_menubar_tracker.h"
+ #include "chrome/browser/ui/cocoa/fullscreen/fullscreen_toolbar_controller.h"
+ #include "chrome/browser/ui/color/chrome_color_id.h"
+@@ -527,6 +528,73 @@ void BrowserFrameViewMac::Layout(PassKey
+     LayoutWindowControlsOverlay();
+   }
+   LayoutSuperclass<BrowserFrameView>(this);
++
++  // Dia-style: inset the native traffic lights from the window edges in
++  // vertical layout. AppKit owns their geometry and re-asserts it on its own
++  // layout triggers, so re-assert absolute positions every pass. Positions
++  // are only assigned when they actually differ, so this can't layout-loop.
++  // Fullscreen keeps native placement.
++  if (!GetBrowserView()->IsFullscreen()) {
++    if (auto* layout_controller = HeliumLayoutStateController::From(
++            GetBrowserView()->browser());
++        layout_controller && layout_controller->IsVerticalLayout()) {
++      NSWindow* window = GetWidget()->GetNativeWindow().GetNativeNSWindow();
++      if (window) {
++        // Dia spacing from the window edges, in points.
++        constexpr CGFloat kDiaTrafficLightLeading = 30;
++        constexpr CGFloat kDiaTrafficLightTop = 26;
++        NSView* close_button =
++            [window standardWindowButton:NSWindowCloseButton];
++        NSView* superview = close_button.superview;
++        if (superview) {
++          const CGFloat superview_width = superview.bounds.size.width;
++          const CGFloat superview_height = superview.bounds.size.height;
++          const BOOL rtl = base::i18n::IsRTL();
++          // Preserve AppKit's inter-button spacing: measure the group, then
++          // shift it so its leading edge sits at the Dia margin.
++          CGFloat group_min_x = CGFLOAT_MAX;
++          CGFloat group_max_x = 0;
++          NSView* buttons[3];
++          int count = 0;
++          for (NSWindowButton button : {NSWindowCloseButton,
++                                        NSWindowMiniaturizeButton,
++                                        NSWindowZoomButton}) {
++            NSView* button_view = [window standardWindowButton:button];
++            if (!button_view || button_view.superview != superview) {
++              continue;
++            }
++            buttons[count++] = button_view;
++            group_min_x = std::min(group_min_x, NSMinX(button_view.frame));
++            group_max_x = std::max(group_max_x, NSMaxX(button_view.frame));
++          }
++          if (count > 0) {
++            const CGFloat group_width = group_max_x - group_min_x;
++            const CGFloat target_min_x =
++                rtl ? superview_width - kDiaTrafficLightLeading - group_width
++                    : kDiaTrafficLightLeading;
++            const CGFloat dx = target_min_x - group_min_x;
++            for (int i = 0; i < count; ++i) {
++              NSRect frame = buttons[i].frame;
++              frame.origin.x += dx;
++              // The theme frame is flipped (top-down); fall back to
++              // bottom-up math if that ever changes.
++              const CGFloat target_y =
++                  superview.isFlipped
++                      ? kDiaTrafficLightTop
++                      : superview_height - kDiaTrafficLightTop -
++                            NSHeight(frame);
++              frame.origin.y = target_y;
++              const NSRect current = buttons[i].frame;
++              if (fabs(NSMinX(frame) - NSMinX(current)) > 0.5 ||
++                  fabs(NSMinY(frame) - NSMinY(current)) > 0.5) {
++                buttons[i].frame = frame;
++              }
++            }
++          }
++        }
++      }
++    }
++  }
+ }
+ 
+ ///////////////////////////////////////////////////////////////////////////////
 Index: src/chrome/browser/ui/color/material_chrome_color_mixer.cc
 ===================================================================
 --- src.orig/chrome/browser/ui/color/material_chrome_color_mixer.cc
 +++ src/chrome/browser/ui/color/material_chrome_color_mixer.cc
-@@ -482,9 +482,10 @@ void AddMaterialChromeColorMixer(ui::Col
+@@ -482,9 +482,13 @@ void AddMaterialChromeColorMixer(ui::Col
    mixer[kColorHoverCardTabAlertAudioPlayingIcon] = {
        ui::kColorSysOnSurfaceSubtle};
  
 -  // Toolbar colors.
-+  // Toolbar colors. Dia-style: light gray chrome (sidebar, toolbar and
-+  // content margins share one neutral surface so the page reads as a card).
-   mixer[kColorToolbar] = {dark_mode ? ui::kColorFrameActive
+-  mixer[kColorToolbar] = {dark_mode ? ui::kColorFrameActive
 -                                    : ui::kColorSysBase};
-+                                    : ui::kColorSysSurface4};
++  // Dia-style: exact neutral gray chrome; the page card stays white
++  // on top of it.
++  if (dark_mode) {
++    mixer[kColorToolbar] = {ui::kColorFrameActive};
++  } else {
++    mixer[kColorToolbar] = {SkColorSetRGB(0xF4, 0xF4, 0xF4)};
++  }
    mixer[kColorToolbarButtonBackgroundHighlightedDefault] = {
        ui::kColorSysStateHoverOnSubtle};
    mixer[kColorToolbarButtonBorder] = {ui::kColorSysOutline};
+Index: src/chrome/browser/ui/views/helium/native_frame_materials.cc
+===================================================================
+--- src.orig/chrome/browser/ui/views/helium/native_frame_materials.cc
++++ src/chrome/browser/ui/views/helium/native_frame_materials.cc
+@@ -7,6 +7,7 @@
+ #include "build/build_config.h"
+ #include "chrome/browser/profiles/profile.h"
+ #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
++#include "chrome/browser/ui/helium/helium_layout_state_controller.h"
+ #include "chrome/browser/ui/ui_features.h"
+ #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/common/pref_names.h"
+@@ -27,6 +28,18 @@ bool ShouldUseNativeFrameMaterials(const
+     return false;
+   }
+ 
++  // Dia-style: opaque theme-painted chrome in vertical layout, so the
++  // neutral toolbar color shows instead of macOS vibrancy. Fullscreen
++  // keeps native materials.
++  if (!browser_view->IsFullscreen()) {
++    // browser() is const here; the lookup does not mutate.
++    if (auto* layout_controller = HeliumLayoutStateController::From(
++            const_cast<Browser*>(browser_view->browser()));
++        layout_controller && layout_controller->IsVerticalLayout()) {
++      return false;
++    }
++  }
++
+   const Profile* profile = browser_view->GetProfile();
+   return profile &&
+          profile->GetPrefs()->GetBoolean(prefs::kHeliumNativeFrameMaterials);
